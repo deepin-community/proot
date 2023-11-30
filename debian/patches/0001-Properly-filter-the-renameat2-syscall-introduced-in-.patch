@@ -1,0 +1,202 @@
+From fd417981bea00250128274a4f2d196ee1c10c6ea Mon Sep 17 00:00:00 2001
+From: Kimon Hoffmann <Kimon.Hoffmann@lawo.com>
+Date: Wed, 10 Oct 2018 13:10:07 +0200
+Subject: [PATCH] Properly filter the renameat2 syscall introduced in Linux
+ v3.15.
+
+Handle the renameat2 syscall analogous to renameat, as their only
+difference is an additional flags attribute, which isn't relevant to
+the path based adjustments performed by proot.
+
+Removed erroneous syscall entry from arm64 table.
+---
+ src/extension/kompat/kompat.c | 19 +++++++++++++++++++
+ src/syscall/enter.c           |  1 +
+ src/syscall/exit.c            |  3 ++-
+ src/syscall/seccomp.c         |  1 +
+ src/syscall/sysnums-arm.h     |  5 +++++
+ src/syscall/sysnums-arm64.h   |  5 ++++-
+ src/syscall/sysnums-i386.h    |  4 ++++
+ src/syscall/sysnums-sh4.h     |  5 +++++
+ src/syscall/sysnums-x32.h     |  4 ++++
+ src/syscall/sysnums-x86_64.h  |  4 ++++
+ src/syscall/sysnums.list      |  5 ++++-
+ 11 files changed, 53 insertions(+), 3 deletions(-)
+
+--- a/src/extension/kompat/kompat.c
++++ b/src/extension/kompat/kompat.c
+@@ -509,6 +509,24 @@ static int handle_sysenter_end(Tracee *t
+ 		return 0;
+ 	}
+ 
++	case PR_renameat2: {
++		Modif modif = {
++			.expected_release = KERNEL_VERSION(3,15,0),
++			.new_sysarg_num   = PR_rename,
++			.shifts = { [0] = {
++					.sysarg  = SYSARG_2,
++					.nb_args = 1,
++					.offset  =-1 },
++				    [1] = {
++					    .sysarg  = SYSARG_4,
++					    .nb_args = 1,
++					    .offset  = -2 }
++			}
++		};
++		modify_syscall(tracee, config, &modif);
++		return 0;
++	}
++
+ 	case PR_signalfd4: {
+ 		bool modified;
+ 		Modif modif = {
+@@ -968,6 +986,7 @@ static FilteredSysnum filtered_sysnums[]
+ 	{ PR_pselect6, 		0 },
+ 	{ PR_readlinkat, 	0 },
+ 	{ PR_renameat, 		0 },
++	{ PR_renameat2,		0 },
+ 	{ PR_setdomainname,	FILTER_SYSEXIT },
+ 	{ PR_sethostname,	FILTER_SYSEXIT },
+ 	{ PR_signalfd4, 	FILTER_SYSEXIT },
+--- a/src/syscall/enter.c
++++ b/src/syscall/enter.c
+@@ -532,6 +532,7 @@ int translate_syscall_enter(Tracee *trac
+ 		break;
+ 
+ 	case PR_renameat:
++	case PR_renameat2:
+ 		olddirfd = peek_reg(tracee, CURRENT, SYSARG_1);
+ 		newdirfd = peek_reg(tracee, CURRENT, SYSARG_3);
+ 
+--- a/src/syscall/exit.c
++++ b/src/syscall/exit.c
+@@ -231,7 +231,8 @@ void translate_syscall_exit(Tracee *trac
+ 		break;
+ 
+ 	case PR_rename:
+-	case PR_renameat: {
++	case PR_renameat:
++	case PR_renameat2: {
+ 		char old_path[PATH_MAX];
+ 		char new_path[PATH_MAX];
+ 		ssize_t old_length;
+--- a/src/syscall/seccomp.c
++++ b/src/syscall/seccomp.c
+@@ -383,6 +383,7 @@ static FilteredSysnum proot_sysnums[] =
+ 	{ PR_removexattr,	0 },
+ 	{ PR_rename,		FILTER_SYSEXIT },
+ 	{ PR_renameat,		FILTER_SYSEXIT },
++	{ PR_renameat2,		FILTER_SYSEXIT },
+ 	{ PR_rmdir,		0 },
+ 	{ PR_setxattr,		0 },
+ 	{ PR_socketcall,	FILTER_SYSEXIT },
+--- a/src/syscall/sysnums-arm.h
++++ b/src/syscall/sysnums-arm.h
+@@ -335,4 +335,9 @@ static const Sysnum sysnums_arm[] = {
+ 	[ 375 ] = PR_setns,
+ 	[ 376 ] = PR_process_vm_readv,
+ 	[ 377 ] = PR_process_vm_writev,
++	[ 378 ] = PR_kcmp,
++	[ 379 ] = PR_finit_module,
++	[ 380 ] = PR_sched_setattr,
++	[ 381 ] = PR_sched_getattr,
++	[ 382 ] = PR_renameat2,
+ };
+--- a/src/syscall/sysnums-arm64.h
++++ b/src/syscall/sysnums-arm64.h
+@@ -259,5 +259,8 @@ static const Sysnum sysnums_arm64[] = {
+ 	[ 270 ] = PR_process_vm_readv,
+ 	[ 271 ] = PR_process_vm_writev,
+ 	[ 272 ] = PR_kcmp,
+-	[ 273 ] = PR_syscalls,
++	[ 273 ] = PR_finit_module,
++	[ 274 ] = PR_sched_setattr,
++	[ 275 ] = PR_sched_getattr,
++	[ 276 ] = PR_renameat2,
+ };
+--- a/src/syscall/sysnums-i386.h
++++ b/src/syscall/sysnums-i386.h
+@@ -347,4 +347,8 @@ static const Sysnum sysnums_i386[] = {
+ 	[ 347 ] = PR_process_vm_readv,
+ 	[ 348 ] = PR_process_vm_writev,
+ 	[ 349 ] = PR_kcmp,
++	[ 350 ] = PR_finit_module,
++	[ 351 ] = PR_sched_setattr,
++	[ 352 ] = PR_sched_getattr,
++	[ 353 ] = PR_renameat2,
+ };
+--- a/src/syscall/sysnums-sh4.h
++++ b/src/syscall/sysnums-sh4.h
+@@ -339,4 +339,9 @@ static const Sysnum sysnums_sh4[] = {
+ 	[ 364 ] = PR_setns,
+ 	[ 365 ] = PR_process_vm_readv,
+ 	[ 366 ] = PR_process_vm_writev,
++	[ 367 ] = PR_kcmp,
++	[ 368 ] = PR_finit_module,
++	[ 369 ] = PR_sched_setattr,
++	[ 370 ] = PR_sched_getattr,
++	[ 371 ] = PR_renameat2,
+ };
+--- a/src/syscall/sysnums-x32.h
++++ b/src/syscall/sysnums-x32.h
+@@ -272,6 +272,10 @@ static const Sysnum sysnums_x32[] = {
+ 	[ 308 ] = PR_setns,
+ 	[ 309 ] = PR_getcpu,
+ 	[ 312 ] = PR_kcmp,
++	[ 313 ] = PR_finit_module,
++	[ 314 ] = PR_sched_setattr,
++	[ 315 ] = PR_sched_getattr,
++	[ 316 ] = PR_renameat2,
+ 	[ 512 ] = PR_rt_sigaction,
+ 	[ 513 ] = PR_rt_sigreturn,
+ 	[ 514 ] = PR_ioctl,
+--- a/src/syscall/sysnums-x86_64.h
++++ b/src/syscall/sysnums-x86_64.h
+@@ -314,4 +314,8 @@ static const Sysnum sysnums_x86_64[] = {
+ 	[ 310 ] = PR_process_vm_readv,
+ 	[ 311 ] = PR_process_vm_writev,
+ 	[ 312 ] = PR_kcmp,
++	[ 313 ] = PR_finit_module,
++	[ 314 ] = PR_sched_setattr,
++	[ 315 ] = PR_sched_getattr,
++	[ 316 ] = PR_renameat2,
+ };
+--- a/src/syscall/sysnums.list
++++ b/src/syscall/sysnums.list
+@@ -74,6 +74,7 @@ SYSNUM(fcntl)
+ SYSNUM(fcntl64)
+ SYSNUM(fdatasync)
+ SYSNUM(fgetxattr)
++SYSNUM(finit_module)
+ SYSNUM(flistxattr)
+ SYSNUM(flock)
+ SYSNUM(fork)
+@@ -251,6 +252,7 @@ SYSNUM(remap_file_pages)
+ SYSNUM(removexattr)
+ SYSNUM(rename)
+ SYSNUM(renameat)
++SYSNUM(renameat2)
+ SYSNUM(request_key)
+ SYSNUM(restart_syscall)
+ SYSNUM(rmdir)
+@@ -265,10 +267,12 @@ SYSNUM(rt_tgsigqueueinfo)
+ SYSNUM(sched_get_priority_max)
+ SYSNUM(sched_get_priority_min)
+ SYSNUM(sched_getaffinity)
++SYSNUM(sched_getattr)
+ SYSNUM(sched_getparam)
+ SYSNUM(sched_getscheduler)
+ SYSNUM(sched_rr_get_interval)
+ SYSNUM(sched_setaffinity)
++SYSNUM(sched_setattr)
+ SYSNUM(sched_setparam)
+ SYSNUM(sched_setscheduler)
+ SYSNUM(sched_yield)
+@@ -351,7 +355,6 @@ SYSNUM(sync)
+ SYSNUM(sync_file_range)
+ SYSNUM(sync_file_range2)
+ SYSNUM(syncfs)
+-SYSNUM(syscalls)
+ SYSNUM(sysfs)
+ SYSNUM(sysinfo)
+ SYSNUM(syslog)

@@ -1,0 +1,40 @@
+From: Nicolas Cornu <ncornu@aldebaran.com>
+Date: Wed, 29 Jul 2015 14:52:57 +0200
+X-Dgit-Generated: 5.1.0-1.2 37bdc8d26bc0fd1af13142dd34dc11ae2ac2564a
+Subject: Fix use of size
+
+Applied-upstream: 5.1.1, commit:d649854ddb66779950954aac99d960379c631a71
+Bug: https://github.com/proot-me/PRoot/pull/108
+Bug-Debian: https://bugs.debian.org/847292
+
+---
+
+--- proot-5.1.0.orig/src/execve/enter.c
++++ proot-5.1.0/src/execve/enter.c
+@@ -454,10 +454,10 @@ static int expand_runner(Tracee* tracee,
+ }
+ 
+ extern unsigned char _binary_loader_exe_start;
+-extern unsigned char _binary_loader_exe_size;
++extern unsigned char _binary_loader_exe_end;
+ 
+ extern unsigned char WEAK _binary_loader_m32_exe_start;
+-extern unsigned char WEAK _binary_loader_m32_exe_size;
++extern unsigned char WEAK _binary_loader_m32_exe_end;
+ 
+ /**
+  * Extract the built-in loader.  This function returns NULL if an
+@@ -483,11 +483,11 @@ static char *extract_loader(const Tracee
+ 
+ 	if (wants_32bit_version) {
+ 		start = (void *) &_binary_loader_m32_exe_start;
+-		size  = (size_t) &_binary_loader_m32_exe_size;
++		size  = (size_t)(&_binary_loader_m32_exe_end-&_binary_loader_m32_exe_start);
+ 	}
+ 	else {
+ 		start = (void *) &_binary_loader_exe_start;
+-		size  = (size_t) &_binary_loader_exe_size;
++		size  = (size_t) (&_binary_loader_exe_end-&_binary_loader_exe_start);
+ 	}
+ 
+ 	status2 = write(fd, start, size);
