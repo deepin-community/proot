@@ -1,0 +1,6 @@
+Install-proot-into-DESTDIR-usr-bin.patch
+Fix-man-syntax.diff
+arm64.patch
+fix-use-of-size
+disable-seccomp-based-tracing-performanc
+0001-Properly-filter-the-renameat2-syscall-introduced-in-.patch
